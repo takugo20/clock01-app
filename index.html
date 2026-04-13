@@ -52,13 +52,6 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .title {
-      margin: 0 0 14px;
-      font-size: 1.2rem;
-      letter-spacing: 0.08em;
-      color: var(--subtext);
-    }
-
     .tabs {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -112,14 +105,6 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-    }
-
-    .section-label {
-      font-size: 0.95rem;
-      letter-spacing: 0.16em;
-      color: var(--subtext);
-      margin-bottom: 18px;
-      text-transform: uppercase;
     }
 
     /* デジタル時計 */
@@ -421,7 +406,6 @@
 <body>
   <div class="app">
     <div class="header">
-      <h1 class="title">CLOCK APP</h1>
       <div class="tabs">
         <button class="tab-btn active" data-target="digital-view">デジタル</button>
         <button class="tab-btn" data-target="analog-view">アナログ</button>
@@ -434,7 +418,6 @@
       <!-- デジタル時計 -->
       <section id="digital-view" class="panel-view active">
         <div class="panel-card">
-          <div class="section-label">Digital Clock</div>
           <div class="digital-screen">
             <div id="digitalTime" class="digital-time">00:00:00</div>
             <div id="digitalDate" class="digital-date">2000-01-01 MON</div>
@@ -445,7 +428,6 @@
       <!-- アナログ時計 -->
       <section id="analog-view" class="panel-view">
         <div class="panel-card">
-          <div class="section-label">Analog Clock</div>
           <div id="analogClock" class="analog-clock">
             <div class="clock-center"></div>
             <div id="hourHand" class="hand hour-hand"></div>
@@ -459,8 +441,6 @@
       <!-- タイマー -->
       <section id="timer-view" class="panel-view">
         <div class="panel-card">
-          <div class="section-label">Timer</div>
-
           <div class="input-row">
             <div class="input-group">
               <label for="timerMinutes">分</label>
@@ -475,8 +455,7 @@
           <div id="timerDisplay" class="timer-display">00:30</div>
 
           <div class="controls">
-            <button id="timerStartBtn" class="control-btn primary">開始</button>
-            <button id="timerPauseBtn" class="control-btn">一時停止</button>
+            <button id="timerToggleBtn" class="control-btn primary">開始</button>
             <button id="timerResetBtn" class="control-btn danger">リセット</button>
           </div>
 
@@ -490,13 +469,10 @@
       <!-- ストップウォッチ -->
       <section id="stopwatch-view" class="panel-view">
         <div class="panel-card">
-          <div class="section-label">Stopwatch</div>
-
           <div id="stopwatchDisplay" class="stopwatch-display">00:00.00</div>
 
           <div class="controls">
-            <button id="swStartBtn" class="control-btn primary">スタート</button>
-            <button id="swStopBtn" class="control-btn">ストップ</button>
+            <button id="swToggleBtn" class="control-btn primary">スタート</button>
             <button id="swLapBtn" class="control-btn success">ラップ</button>
             <button id="swResetBtn" class="control-btn danger">リセット</button>
           </div>
@@ -529,6 +505,60 @@
     function formatDateDigital(date) {
       return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${weekNamesEN[date.getDay()]}`;
     }
+
+    // =========================
+    // 音まわり
+    // =========================
+    let audioCtx = null;
+
+    function ensureAudioContext() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return null;
+
+      if (!audioCtx) {
+        audioCtx = new AudioContextClass();
+      }
+
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+
+      return audioCtx;
+    }
+
+    function playAlarmSound() {
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+
+      const startAt = ctx.currentTime + 0.03;
+
+      for (let i = 0; i < 3; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = "square";
+        osc.frequency.setValueAtTime(880, startAt + i * 0.28);
+
+        gain.gain.setValueAtTime(0.0001, startAt + i * 0.28);
+        gain.gain.exponentialRampToValueAtTime(0.12, startAt + i * 0.28 + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + i * 0.28 + 0.2);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(startAt + i * 0.28);
+        osc.stop(startAt + i * 0.28 + 0.22);
+      }
+    }
+
+    // 最初のユーザー操作で音を有効化
+    document.addEventListener(
+      "pointerdown",
+      () => {
+        ensureAudioContext();
+      },
+      { once: true }
+    );
 
     // =========================
     // タブ切り替え
@@ -587,14 +617,8 @@
 
           const number = document.createElement("div");
           number.className = "mark-number";
-          let label = i / 5;
-          if (label === 0) label = 12;
-          if (label === 12) {
-            number.textContent = "12";
-          } else {
-            number.textContent = String(label);
-          }
-
+          const label = i === 60 ? 12 : i / 5;
+          number.textContent = String(label);
           number.style.transform = `translate(-50%, -138px) rotate(${-i * 6}deg)`;
           mark.appendChild(number);
         }
@@ -623,7 +647,6 @@
       analogDate.textContent = formatDateJP(now);
     }
 
-    // 秒針を滑らかに動かす
     function analogLoop() {
       updateAnalogClock();
       requestAnimationFrame(analogLoop);
@@ -635,8 +658,7 @@
     const timerMinutesInput = document.getElementById("timerMinutes");
     const timerSecondsInput = document.getElementById("timerSeconds");
     const timerDisplay = document.getElementById("timerDisplay");
-    const timerStartBtn = document.getElementById("timerStartBtn");
-    const timerPauseBtn = document.getElementById("timerPauseBtn");
+    const timerToggleBtn = document.getElementById("timerToggleBtn");
     const timerResetBtn = document.getElementById("timerResetBtn");
 
     let timerTotalMs = 30000;
@@ -652,6 +674,10 @@
       return `${pad2(minutes)}:${pad2(seconds)}`;
     }
 
+    function updateTimerButton() {
+      timerToggleBtn.textContent = timerRunning ? "一時停止" : "開始";
+    }
+
     function syncTimerFromInputs() {
       const min = Math.max(0, Number(timerMinutesInput.value) || 0);
       let sec = Math.max(0, Number(timerSecondsInput.value) || 0);
@@ -661,31 +687,7 @@
       timerTotalMs = (min * 60 + sec) * 1000;
       timerRemainingMs = timerTotalMs;
       timerDisplay.textContent = formatTimer(timerRemainingMs);
-    }
-
-    function playAlarmSound() {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
-
-      const ctx = new AudioContextClass();
-      const now = ctx.currentTime;
-
-      for (let i = 0; i < 3; i++) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = "square";
-        osc.frequency.setValueAtTime(880, now + i * 0.25);
-        gain.gain.setValueAtTime(0.0001, now + i * 0.25);
-        gain.gain.exponentialRampToValueAtTime(0.15, now + i * 0.25 + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.25 + 0.18);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(now + i * 0.25);
-        osc.stop(now + i * 0.25 + 0.2);
-      }
+      updateTimerButton();
     }
 
     function stopTimerLoop() {
@@ -695,18 +697,28 @@
       }
     }
 
+    function timerFinished() {
+      timerRunning = false;
+      timerRemainingMs = 0;
+      timerDisplay.textContent = formatTimer(0);
+      updateTimerButton();
+      stopTimerLoop();
+
+      playAlarmSound();
+
+      // alertを少し遅らせて、音の開始を邪魔しにくくする
+      setTimeout(() => {
+        alert("タイムアップです。");
+      }, 350);
+    }
+
     function timerLoop() {
       if (!timerRunning) return;
 
       timerRemainingMs = timerEndTime - performance.now();
 
       if (timerRemainingMs <= 0) {
-        timerRemainingMs = 0;
-        timerDisplay.textContent = formatTimer(timerRemainingMs);
-        timerRunning = false;
-        stopTimerLoop();
-        playAlarmSound();
-        alert("タイムアップです。");
+        timerFinished();
         return;
       }
 
@@ -722,8 +734,17 @@
       if (!timerRunning) syncTimerFromInputs();
     });
 
-    timerStartBtn.addEventListener("click", async () => {
-      if (timerRunning) return;
+    timerToggleBtn.addEventListener("click", () => {
+      ensureAudioContext();
+
+      if (timerRunning) {
+        timerRunning = false;
+        timerRemainingMs = Math.max(0, timerEndTime - performance.now());
+        timerDisplay.textContent = formatTimer(timerRemainingMs);
+        stopTimerLoop();
+        updateTimerButton();
+        return;
+      }
 
       if (timerRemainingMs <= 0) {
         syncTimerFromInputs();
@@ -736,15 +757,8 @@
 
       timerRunning = true;
       timerEndTime = performance.now() + timerRemainingMs;
+      updateTimerButton();
       timerLoop();
-    });
-
-    timerPauseBtn.addEventListener("click", () => {
-      if (!timerRunning) return;
-      timerRunning = false;
-      timerRemainingMs = Math.max(0, timerEndTime - performance.now());
-      timerDisplay.textContent = formatTimer(timerRemainingMs);
-      stopTimerLoop();
     });
 
     timerResetBtn.addEventListener("click", () => {
@@ -757,8 +771,7 @@
     // ストップウォッチ
     // =========================
     const stopwatchDisplay = document.getElementById("stopwatchDisplay");
-    const swStartBtn = document.getElementById("swStartBtn");
-    const swStopBtn = document.getElementById("swStopBtn");
+    const swToggleBtn = document.getElementById("swToggleBtn");
     const swLapBtn = document.getElementById("swLapBtn");
     const swResetBtn = document.getElementById("swResetBtn");
     const lapList = document.getElementById("lapList");
@@ -769,6 +782,10 @@
     let swRafId = null;
     let lastLapElapsed = 0;
     let lapCount = 0;
+
+    function updateStopwatchButton() {
+      swToggleBtn.textContent = swRunning ? "ストップ" : "スタート";
+    }
 
     function formatStopwatch(ms) {
       const totalCentiseconds = Math.floor(ms / 10);
@@ -814,19 +831,20 @@
       lapList.prepend(li);
     }
 
-    swStartBtn.addEventListener("click", () => {
-      if (swRunning) return;
+    swToggleBtn.addEventListener("click", () => {
+      if (swRunning) {
+        swRunning = false;
+        swElapsedMs = performance.now() - swStartTime;
+        renderStopwatch();
+        stopStopwatchLoop();
+        updateStopwatchButton();
+        return;
+      }
+
       swRunning = true;
       swStartTime = performance.now() - swElapsedMs;
+      updateStopwatchButton();
       stopwatchLoop();
-    });
-
-    swStopBtn.addEventListener("click", () => {
-      if (!swRunning) return;
-      swRunning = false;
-      swElapsedMs = performance.now() - swStartTime;
-      renderStopwatch();
-      stopStopwatchLoop();
     });
 
     swLapBtn.addEventListener("click", () => {
@@ -842,6 +860,7 @@
       lastLapElapsed = 0;
       lapCount = 0;
       renderStopwatch();
+      updateStopwatchButton();
       lapList.innerHTML = `<li class="empty-lap">ラップはまだありません</li>`;
     });
 
@@ -857,6 +876,7 @@
 
       syncTimerFromInputs();
       renderStopwatch();
+      updateStopwatchButton();
     }
 
     init();
