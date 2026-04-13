@@ -19,7 +19,6 @@
       --accent: #ff5a36;
       --accent-soft: rgba(255, 90, 54, 0.18);
       --green: #7CFF6B;
-      --green-soft: rgba(124, 255, 107, 0.12);
       --shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
     }
 
@@ -107,7 +106,6 @@
       align-items: center;
     }
 
-    /* デジタル時計 */
     .digital-screen {
       width: min(100%, 760px);
       background:
@@ -164,7 +162,6 @@
       letter-spacing: 0.1em;
     }
 
-    /* アナログ時計 */
     .analog-clock {
       width: min(78vw, 390px);
       aspect-ratio: 1 / 1;
@@ -259,7 +256,6 @@
       text-align: center;
     }
 
-    /* 共通コントロール */
     .controls {
       width: min(100%, 760px);
       display: flex;
@@ -280,6 +276,12 @@
 
     .control-btn.success {
       background: rgba(124, 255, 107, 0.14);
+    }
+
+    /* ここを追加：タイマーの開始/一時停止ボタン幅を固定 */
+    #timerToggleBtn {
+      width: 132px;
+      text-align: center;
     }
 
     input[type="number"] {
@@ -319,7 +321,6 @@
       color: var(--subtext);
     }
 
-    /* タイマー */
     .timer-display {
       font-family: "Courier New", monospace;
       font-size: clamp(2.5rem, 10vw, 5.8rem);
@@ -338,7 +339,6 @@
       line-height: 1.7;
     }
 
-    /* ストップウォッチ */
     .stopwatch-display {
       font-family: "Courier New", monospace;
       font-size: clamp(2.2rem, 9vw, 5rem);
@@ -387,6 +387,31 @@
       padding: 14px 0;
     }
 
+    @keyframes timerAlertFlash {
+  0% {
+    box-shadow:
+      inset 0 0 0 0 rgba(255, 90, 54, 0),
+      0 0 0 rgba(255, 90, 54, 0);
+    background: rgba(0, 0, 0, 0.12);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 9999px rgba(255, 90, 54, 0.10),
+      0 0 40px rgba(255, 90, 54, 0.18);
+    background: rgba(255, 90, 54, 0.08);
+  }
+  100% {
+    box-shadow:
+      inset 0 0 0 0 rgba(255, 90, 54, 0),
+      0 0 0 rgba(255, 90, 54, 0);
+    background: rgba(0, 0, 0, 0.12);
+  }
+}
+
+.panel-card.timer-alert {
+  animation: timerAlertFlash 0.9s infinite;
+}
+
     @media (max-width: 700px) {
       .tabs {
         grid-template-columns: repeat(2, 1fr);
@@ -415,7 +440,6 @@
     </div>
 
     <div class="content">
-      <!-- デジタル時計 -->
       <section id="digital-view" class="panel-view active">
         <div class="panel-card">
           <div class="digital-screen">
@@ -425,7 +449,6 @@
         </div>
       </section>
 
-      <!-- アナログ時計 -->
       <section id="analog-view" class="panel-view">
         <div class="panel-card">
           <div id="analogClock" class="analog-clock">
@@ -438,9 +461,8 @@
         </div>
       </section>
 
-      <!-- タイマー -->
       <section id="timer-view" class="panel-view">
-        <div class="panel-card">
+          <div id="timerPanelCard" class="panel-card">
           <div class="input-row">
             <div class="input-group">
               <label for="timerMinutes">分</label>
@@ -461,12 +483,11 @@
 
           <div class="timer-note">
             秒単位で設定できます。<br />
-            タイムアップ時はサウンド再生とアラート表示を行います。
+            タイムアップ後は、画面を操作するまでサウンドが鳴り続けます。
           </div>
         </div>
       </section>
 
-      <!-- ストップウォッチ -->
       <section id="stopwatch-view" class="panel-view">
         <div class="panel-card">
           <div id="stopwatchDisplay" class="stopwatch-display">00:00.00</div>
@@ -488,9 +509,6 @@
   </div>
 
   <script>
-    // =========================
-    // 共通
-    // =========================
     const weekNamesJP = ["日", "月", "火", "水", "木", "金", "土"];
     const weekNamesEN = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -507,9 +525,11 @@
     }
 
     // =========================
-    // 音まわり
+    // 音
     // =========================
     let audioCtx = null;
+    let alarmIntervalId = null;
+    let alarmActive = false;
 
     function ensureAudioContext() {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -526,32 +546,53 @@
       return audioCtx;
     }
 
-    function playAlarmSound() {
+    function playBeep() {
       const ctx = ensureAudioContext();
       if (!ctx) return;
 
-      const startAt = ctx.currentTime + 0.03;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-      for (let i = 0; i < 3; i++) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(880, now);
 
-        osc.type = "square";
-        osc.frequency.setValueAtTime(880, startAt + i * 0.28);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.14, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
 
-        gain.gain.setValueAtTime(0.0001, startAt + i * 0.28);
-        gain.gain.exponentialRampToValueAtTime(0.12, startAt + i * 0.28 + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + i * 0.28 + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
 
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(startAt + i * 0.28);
-        osc.stop(startAt + i * 0.28 + 0.22);
-      }
+      osc.start(now);
+      osc.stop(now + 0.24);
     }
 
-    // 最初のユーザー操作で音を有効化
+    function startAlarmLoop() {
+      if (alarmActive) return;
+
+      alarmActive = true;
+      playBeep();
+
+      alarmIntervalId = setInterval(() => {
+        playBeep();
+      }, 320);
+    }
+
+    function stopAlarmLoop() {
+      if (!alarmActive) return;
+
+      alarmActive = false;
+
+      if (alarmIntervalId) {
+        clearInterval(alarmIntervalId);
+        alarmIntervalId = null;
+      }
+
+      stopTimerVisualAlert();
+    }
+
+    // 最初の操作でAudioContextを有効化
     document.addEventListener(
       "pointerdown",
       () => {
@@ -559,6 +600,19 @@
       },
       { once: true }
     );
+
+    // アラーム作動中に画面を触ったら停止
+    document.addEventListener("pointerdown", () => {
+      if (alarmActive) {
+        stopAlarmLoop();
+      }
+    });
+
+    document.addEventListener("keydown", () => {
+      if (alarmActive) {
+        stopAlarmLoop();
+      }
+    });
 
     // =========================
     // タブ切り替え
@@ -586,11 +640,7 @@
 
     function updateDigitalClock() {
       const now = new Date();
-      const hh = pad2(now.getHours());
-      const mm = pad2(now.getMinutes());
-      const ss = pad2(now.getSeconds());
-
-      digitalTime.textContent = `${hh}:${mm}:${ss}`;
+      digitalTime.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
       digitalDate.textContent = formatDateDigital(now);
     }
 
@@ -636,13 +686,9 @@
       const minutes = now.getMinutes() + seconds / 60;
       const hours = (now.getHours() % 12) + minutes / 60;
 
-      const secondDeg = seconds * 6;
-      const minuteDeg = minutes * 6;
-      const hourDeg = hours * 30;
-
-      hourHand.style.transform = `translateX(-50%) rotate(${hourDeg}deg)`;
-      minuteHand.style.transform = `translateX(-50%) rotate(${minuteDeg}deg)`;
-      secondHand.style.transform = `translateX(-50%) rotate(${secondDeg}deg)`;
+      hourHand.style.transform = `translateX(-50%) rotate(${hours * 30}deg)`;
+      minuteHand.style.transform = `translateX(-50%) rotate(${minutes * 6}deg)`;
+      secondHand.style.transform = `translateX(-50%) rotate(${seconds * 6}deg)`;
 
       analogDate.textContent = formatDateJP(now);
     }
@@ -660,7 +706,8 @@
     const timerDisplay = document.getElementById("timerDisplay");
     const timerToggleBtn = document.getElementById("timerToggleBtn");
     const timerResetBtn = document.getElementById("timerResetBtn");
-
+    const timerPanelCard = document.getElementById("timerPanelCard");
+    
     let timerTotalMs = 30000;
     let timerRemainingMs = 30000;
     let timerEndTime = null;
@@ -676,6 +723,13 @@
 
     function updateTimerButton() {
       timerToggleBtn.textContent = timerRunning ? "一時停止" : "開始";
+    }
+    function startTimerVisualAlert() {
+      timerPanelCard.classList.add("timer-alert");
+    }
+
+    function stopTimerVisualAlert() {
+      timerPanelCard.classList.remove("timer-alert");
     }
 
     function syncTimerFromInputs() {
@@ -703,13 +757,8 @@
       timerDisplay.textContent = formatTimer(0);
       updateTimerButton();
       stopTimerLoop();
-
-      playAlarmSound();
-
-      // alertを少し遅らせて、音の開始を邪魔しにくくする
-      setTimeout(() => {
-        alert("タイムアップです。");
-      }, 350);
+      startAlarmLoop();
+      startTimerVisualAlert();
     }
 
     function timerLoop() {
@@ -737,6 +786,10 @@
     timerToggleBtn.addEventListener("click", () => {
       ensureAudioContext();
 
+      if (alarmActive) {
+        stopAlarmLoop();
+      }
+
       if (timerRunning) {
         timerRunning = false;
         timerRemainingMs = Math.max(0, timerEndTime - performance.now());
@@ -751,7 +804,6 @@
       }
 
       if (timerRemainingMs <= 0) {
-        alert("タイマー時間を1秒以上に設定してください。");
         return;
       }
 
@@ -764,6 +816,7 @@
     timerResetBtn.addEventListener("click", () => {
       timerRunning = false;
       stopTimerLoop();
+      stopAlarmLoop();
       syncTimerFromInputs();
     });
 
