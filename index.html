@@ -3,90 +3,863 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>時計アプリ</title>
+  <title>マルチ時計アプリ</title>
   <style>
     * {
       box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+    }
+
+    :root {
+      --bg1: #0b1020;
+      --bg2: #151c33;
+      --panel: rgba(255, 255, 255, 0.08);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --text: #f5f7ff;
+      --subtext: #c9d1e6;
+      --accent: #ff5a36;
+      --accent-soft: rgba(255, 90, 54, 0.18);
+      --green: #7CFF6B;
+      --green-soft: rgba(124, 255, 107, 0.12);
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
     }
 
     body {
+      margin: 0;
       min-height: 100vh;
+      background:
+        radial-gradient(circle at top, rgba(255, 120, 90, 0.18), transparent 35%),
+        linear-gradient(135deg, var(--bg1), var(--bg2));
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
-      background: linear-gradient(135deg, #0f172a, #1e293b);
-      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
-      color: white;
+      padding: 20px;
     }
 
-    .clock-card {
-      width: min(90%, 500px);
-      padding: 32px 24px;
-      border-radius: 24px;
-      background: rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(10px);
-      text-align: center;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    .app {
+      width: min(920px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 20px 20px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .title {
-      font-size: 1.1rem;
-      margin-bottom: 20px;
-      opacity: 0.85;
+      margin: 0 0 14px;
+      font-size: 1.2rem;
       letter-spacing: 0.08em;
+      color: var(--subtext);
     }
 
-    .time {
-      font-size: clamp(2.5rem, 10vw, 5rem);
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .tab-btn,
+    .control-btn {
+      border: none;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 0.98rem;
       font-weight: 700;
-      letter-spacing: 0.06em;
-      margin-bottom: 16px;
+      cursor: pointer;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
+      transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .tab-btn:hover,
+    .control-btn:hover {
+      transform: translateY(-1px);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .tab-btn.active {
+      background: var(--accent-soft);
+      box-shadow: inset 0 0 0 1px rgba(255, 90, 54, 0.4);
+      color: #fff2ee;
+    }
+
+    .content {
+      padding: 24px;
+    }
+
+    .panel-view {
+      display: none;
+    }
+
+    .panel-view.active {
+      display: block;
+    }
+
+    .panel-card {
+      min-height: 520px;
+      border-radius: 24px;
+      background: rgba(0, 0, 0, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .section-label {
+      font-size: 0.95rem;
+      letter-spacing: 0.16em;
+      color: var(--subtext);
+      margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+
+    /* デジタル時計 */
+    .digital-screen {
+      width: min(100%, 760px);
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.92));
+      border: 1px solid rgba(124, 255, 107, 0.18);
+      border-radius: 26px;
+      padding: 32px 20px;
+      box-shadow:
+        inset 0 0 20px rgba(124, 255, 107, 0.08),
+        0 0 40px rgba(0, 0, 0, 0.28);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .digital-screen::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0.02) 0px,
+          rgba(255, 255, 255, 0.02) 2px,
+          transparent 2px,
+          transparent 4px
+        );
+      pointer-events: none;
+      opacity: 0.25;
+    }
+
+    .digital-time {
+      position: relative;
+      z-index: 1;
+      font-family: "Courier New", monospace;
+      font-weight: 700;
+      font-size: clamp(2.6rem, 10vw, 6rem);
+      color: var(--green);
+      text-align: center;
+      letter-spacing: 0.08em;
+      text-shadow:
+        0 0 6px rgba(124, 255, 107, 0.45),
+        0 0 14px rgba(124, 255, 107, 0.25);
       font-variant-numeric: tabular-nums;
     }
 
-    .date {
-      font-size: clamp(1rem, 4vw, 1.4rem);
-      opacity: 0.9;
+    .digital-date {
+      position: relative;
+      z-index: 1;
+      margin-top: 18px;
+      text-align: center;
+      font-family: "Courier New", monospace;
+      font-size: clamp(1rem, 3.5vw, 1.5rem);
+      color: rgba(190, 255, 177, 0.92);
+      letter-spacing: 0.1em;
+    }
+
+    /* アナログ時計 */
+    .analog-clock {
+      width: min(78vw, 390px);
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      position: relative;
+      background:
+        radial-gradient(circle at 50% 45%, #26314f 0%, #161f39 55%, #0e1529 100%);
+      border: 10px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        inset 0 0 24px rgba(255, 255, 255, 0.05),
+        0 14px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .clock-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      box-shadow: 0 0 0 4px rgba(255, 90, 54, 0.25);
+    }
+
+    .hand {
+      position: absolute;
+      left: 50%;
+      bottom: 50%;
+      transform-origin: center bottom;
+      transform: translateX(-50%) rotate(0deg);
+      border-radius: 999px;
+    }
+
+    .hour-hand {
+      width: 8px;
+      height: 92px;
+      background: #f4f6ff;
+      z-index: 12;
+    }
+
+    .minute-hand {
+      width: 6px;
+      height: 132px;
+      background: #dbe4ff;
+      z-index: 13;
+    }
+
+    .second-hand {
+      width: 3px;
+      height: 150px;
+      background: var(--accent);
+      z-index: 14;
+    }
+
+    .mark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform-origin: center center;
+    }
+
+    .mark-line {
+      width: 4px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.82);
+      border-radius: 999px;
+      transform: translate(-50%, -170px);
+    }
+
+    .mark.major .mark-line {
+      width: 6px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .mark-number {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -138px);
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #f8fbff;
+    }
+
+    .analog-date {
+      margin-top: 24px;
+      font-size: 1.05rem;
+      color: var(--subtext);
+      text-align: center;
+    }
+
+    /* 共通コントロール */
+    .controls {
+      width: min(100%, 760px);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .control-btn.primary {
+      background: var(--accent-soft);
+      box-shadow: inset 0 0 0 1px rgba(255, 90, 54, 0.35);
+    }
+
+    .control-btn.danger {
+      background: rgba(255, 80, 80, 0.18);
+    }
+
+    .control-btn.success {
+      background: rgba(124, 255, 107, 0.14);
+    }
+
+    input[type="number"] {
+      width: 100px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.07);
+      color: white;
+      border-radius: 12px;
+      padding: 12px 10px;
+      font-size: 1rem;
+      text-align: center;
+      outline: none;
+    }
+
+    input[type="number"]::placeholder {
+      color: rgba(255,255,255,0.45);
+    }
+
+    .input-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .input-group label {
+      font-size: 0.9rem;
+      color: var(--subtext);
+    }
+
+    /* タイマー */
+    .timer-display {
+      font-family: "Courier New", monospace;
+      font-size: clamp(2.5rem, 10vw, 5.8rem);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      font-variant-numeric: tabular-nums;
+      color: #fff5f2;
+      text-shadow: 0 0 16px rgba(255, 90, 54, 0.18);
+      text-align: center;
+    }
+
+    .timer-note {
+      margin-top: 14px;
+      color: var(--subtext);
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    /* ストップウォッチ */
+    .stopwatch-display {
+      font-family: "Courier New", monospace;
+      font-size: clamp(2.2rem, 9vw, 5rem);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      color: #f6fbff;
+    }
+
+    .lap-list-wrap {
+      width: min(100%, 760px);
+      margin-top: 24px;
+      max-height: 220px;
+      overflow: auto;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 10px 14px;
+    }
+
+    .lap-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .lap-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      font-family: "Courier New", monospace;
+      font-size: 1rem;
+      color: #eaf0ff;
+    }
+
+    .lap-list li:last-child {
+      border-bottom: none;
+    }
+
+    .empty-lap {
+      color: var(--subtext);
+      text-align: center;
+      padding: 14px 0;
+    }
+
+    @media (max-width: 700px) {
+      .tabs {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .panel-card {
+        min-height: 500px;
+        padding: 18px;
+      }
+
+      .content {
+        padding: 16px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="clock-card">
-    <div class="title">現在時刻</div>
-    <div id="time" class="time">00:00:00</div>
-    <div id="date" class="date">2000年1月1日 月曜日</div>
+  <div class="app">
+    <div class="header">
+      <h1 class="title">CLOCK APP</h1>
+      <div class="tabs">
+        <button class="tab-btn active" data-target="digital-view">デジタル</button>
+        <button class="tab-btn" data-target="analog-view">アナログ</button>
+        <button class="tab-btn" data-target="timer-view">タイマー</button>
+        <button class="tab-btn" data-target="stopwatch-view">ストップウォッチ</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- デジタル時計 -->
+      <section id="digital-view" class="panel-view active">
+        <div class="panel-card">
+          <div class="section-label">Digital Clock</div>
+          <div class="digital-screen">
+            <div id="digitalTime" class="digital-time">00:00:00</div>
+            <div id="digitalDate" class="digital-date">2000-01-01 MON</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- アナログ時計 -->
+      <section id="analog-view" class="panel-view">
+        <div class="panel-card">
+          <div class="section-label">Analog Clock</div>
+          <div id="analogClock" class="analog-clock">
+            <div class="clock-center"></div>
+            <div id="hourHand" class="hand hour-hand"></div>
+            <div id="minuteHand" class="hand minute-hand"></div>
+            <div id="secondHand" class="hand second-hand"></div>
+          </div>
+          <div id="analogDate" class="analog-date">2000年1月1日 土曜日</div>
+        </div>
+      </section>
+
+      <!-- タイマー -->
+      <section id="timer-view" class="panel-view">
+        <div class="panel-card">
+          <div class="section-label">Timer</div>
+
+          <div class="input-row">
+            <div class="input-group">
+              <label for="timerMinutes">分</label>
+              <input id="timerMinutes" type="number" min="0" max="999" value="0" />
+            </div>
+            <div class="input-group">
+              <label for="timerSeconds">秒</label>
+              <input id="timerSeconds" type="number" min="0" max="59" value="30" />
+            </div>
+          </div>
+
+          <div id="timerDisplay" class="timer-display">00:30</div>
+
+          <div class="controls">
+            <button id="timerStartBtn" class="control-btn primary">開始</button>
+            <button id="timerPauseBtn" class="control-btn">一時停止</button>
+            <button id="timerResetBtn" class="control-btn danger">リセット</button>
+          </div>
+
+          <div class="timer-note">
+            秒単位で設定できます。<br />
+            タイムアップ時はサウンド再生とアラート表示を行います。
+          </div>
+        </div>
+      </section>
+
+      <!-- ストップウォッチ -->
+      <section id="stopwatch-view" class="panel-view">
+        <div class="panel-card">
+          <div class="section-label">Stopwatch</div>
+
+          <div id="stopwatchDisplay" class="stopwatch-display">00:00.00</div>
+
+          <div class="controls">
+            <button id="swStartBtn" class="control-btn primary">スタート</button>
+            <button id="swStopBtn" class="control-btn">ストップ</button>
+            <button id="swLapBtn" class="control-btn success">ラップ</button>
+            <button id="swResetBtn" class="control-btn danger">リセット</button>
+          </div>
+
+          <div class="lap-list-wrap">
+            <ul id="lapList" class="lap-list">
+              <li class="empty-lap">ラップはまだありません</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <script>
-    const timeEl = document.getElementById("time");
-    const dateEl = document.getElementById("date");
+    // =========================
+    // 共通
+    // =========================
+    const weekNamesJP = ["日", "月", "火", "水", "木", "金", "土"];
+    const weekNamesEN = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
-    const weekNames = ["日", "月", "火", "水", "木", "金", "土"];
-
-    function pad(number) {
-      return String(number).padStart(2, "0");
+    function pad2(num) {
+      return String(num).padStart(2, "0");
     }
 
-    function updateClock() {
+    function formatDateJP(date) {
+      return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${weekNamesJP[date.getDay()]}曜日`;
+    }
+
+    function formatDateDigital(date) {
+      return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${weekNamesEN[date.getDay()]}`;
+    }
+
+    // =========================
+    // タブ切り替え
+    // =========================
+    const tabButtons = document.querySelectorAll(".tab-btn");
+    const views = document.querySelectorAll(".panel-view");
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.target;
+
+        tabButtons.forEach((btn) => btn.classList.remove("active"));
+        views.forEach((view) => view.classList.remove("active"));
+
+        button.classList.add("active");
+        document.getElementById(target).classList.add("active");
+      });
+    });
+
+    // =========================
+    // デジタル時計
+    // =========================
+    const digitalTime = document.getElementById("digitalTime");
+    const digitalDate = document.getElementById("digitalDate");
+
+    function updateDigitalClock() {
+      const now = new Date();
+      const hh = pad2(now.getHours());
+      const mm = pad2(now.getMinutes());
+      const ss = pad2(now.getSeconds());
+
+      digitalTime.textContent = `${hh}:${mm}:${ss}`;
+      digitalDate.textContent = formatDateDigital(now);
+    }
+
+    // =========================
+    // アナログ時計
+    // =========================
+    const analogClock = document.getElementById("analogClock");
+    const hourHand = document.getElementById("hourHand");
+    const minuteHand = document.getElementById("minuteHand");
+    const secondHand = document.getElementById("secondHand");
+    const analogDate = document.getElementById("analogDate");
+
+    function createClockMarks() {
+      for (let i = 1; i <= 60; i++) {
+        const mark = document.createElement("div");
+        mark.className = "mark";
+        mark.style.transform = `translate(-50%, -50%) rotate(${i * 6}deg)`;
+
+        const line = document.createElement("div");
+        line.className = "mark-line";
+
+        if (i % 5 === 0) {
+          mark.classList.add("major");
+
+          const number = document.createElement("div");
+          number.className = "mark-number";
+          let label = i / 5;
+          if (label === 0) label = 12;
+          if (label === 12) {
+            number.textContent = "12";
+          } else {
+            number.textContent = String(label);
+          }
+
+          number.style.transform = `translate(-50%, -138px) rotate(${-i * 6}deg)`;
+          mark.appendChild(number);
+        }
+
+        mark.appendChild(line);
+        analogClock.appendChild(mark);
+      }
+    }
+
+    function updateAnalogClock() {
       const now = new Date();
 
-      const hours = pad(now.getHours());
-      const minutes = pad(now.getMinutes());
-      const seconds = pad(now.getSeconds());
+      const ms = now.getMilliseconds();
+      const seconds = now.getSeconds() + ms / 1000;
+      const minutes = now.getMinutes() + seconds / 60;
+      const hours = (now.getHours() % 12) + minutes / 60;
 
-      const year = now.getFullYear();
-      const month = now.getMonth() + 1;
-      const day = now.getDate();
-      const week = weekNames[now.getDay()];
+      const secondDeg = seconds * 6;
+      const minuteDeg = minutes * 6;
+      const hourDeg = hours * 30;
 
-      timeEl.textContent = `${hours}:${minutes}:${seconds}`;
-      dateEl.textContent = `${year}年${month}月${day}日 ${week}曜日`;
+      hourHand.style.transform = `translateX(-50%) rotate(${hourDeg}deg)`;
+      minuteHand.style.transform = `translateX(-50%) rotate(${minuteDeg}deg)`;
+      secondHand.style.transform = `translateX(-50%) rotate(${secondDeg}deg)`;
+
+      analogDate.textContent = formatDateJP(now);
     }
 
-    updateClock();
-    setInterval(updateClock, 1000);
+    // 秒針を滑らかに動かす
+    function analogLoop() {
+      updateAnalogClock();
+      requestAnimationFrame(analogLoop);
+    }
+
+    // =========================
+    // タイマー
+    // =========================
+    const timerMinutesInput = document.getElementById("timerMinutes");
+    const timerSecondsInput = document.getElementById("timerSeconds");
+    const timerDisplay = document.getElementById("timerDisplay");
+    const timerStartBtn = document.getElementById("timerStartBtn");
+    const timerPauseBtn = document.getElementById("timerPauseBtn");
+    const timerResetBtn = document.getElementById("timerResetBtn");
+
+    let timerTotalMs = 30000;
+    let timerRemainingMs = 30000;
+    let timerEndTime = null;
+    let timerRunning = false;
+    let timerRafId = null;
+
+    function formatTimer(ms) {
+      const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${pad2(minutes)}:${pad2(seconds)}`;
+    }
+
+    function syncTimerFromInputs() {
+      const min = Math.max(0, Number(timerMinutesInput.value) || 0);
+      let sec = Math.max(0, Number(timerSecondsInput.value) || 0);
+      sec = Math.min(59, sec);
+
+      timerSecondsInput.value = sec;
+      timerTotalMs = (min * 60 + sec) * 1000;
+      timerRemainingMs = timerTotalMs;
+      timerDisplay.textContent = formatTimer(timerRemainingMs);
+    }
+
+    function playAlarmSound() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const ctx = new AudioContextClass();
+      const now = ctx.currentTime;
+
+      for (let i = 0; i < 3; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = "square";
+        osc.frequency.setValueAtTime(880, now + i * 0.25);
+        gain.gain.setValueAtTime(0.0001, now + i * 0.25);
+        gain.gain.exponentialRampToValueAtTime(0.15, now + i * 0.25 + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.25 + 0.18);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now + i * 0.25);
+        osc.stop(now + i * 0.25 + 0.2);
+      }
+    }
+
+    function stopTimerLoop() {
+      if (timerRafId) {
+        cancelAnimationFrame(timerRafId);
+        timerRafId = null;
+      }
+    }
+
+    function timerLoop() {
+      if (!timerRunning) return;
+
+      timerRemainingMs = timerEndTime - performance.now();
+
+      if (timerRemainingMs <= 0) {
+        timerRemainingMs = 0;
+        timerDisplay.textContent = formatTimer(timerRemainingMs);
+        timerRunning = false;
+        stopTimerLoop();
+        playAlarmSound();
+        alert("タイムアップです。");
+        return;
+      }
+
+      timerDisplay.textContent = formatTimer(timerRemainingMs);
+      timerRafId = requestAnimationFrame(timerLoop);
+    }
+
+    timerMinutesInput.addEventListener("input", () => {
+      if (!timerRunning) syncTimerFromInputs();
+    });
+
+    timerSecondsInput.addEventListener("input", () => {
+      if (!timerRunning) syncTimerFromInputs();
+    });
+
+    timerStartBtn.addEventListener("click", async () => {
+      if (timerRunning) return;
+
+      if (timerRemainingMs <= 0) {
+        syncTimerFromInputs();
+      }
+
+      if (timerRemainingMs <= 0) {
+        alert("タイマー時間を1秒以上に設定してください。");
+        return;
+      }
+
+      timerRunning = true;
+      timerEndTime = performance.now() + timerRemainingMs;
+      timerLoop();
+    });
+
+    timerPauseBtn.addEventListener("click", () => {
+      if (!timerRunning) return;
+      timerRunning = false;
+      timerRemainingMs = Math.max(0, timerEndTime - performance.now());
+      timerDisplay.textContent = formatTimer(timerRemainingMs);
+      stopTimerLoop();
+    });
+
+    timerResetBtn.addEventListener("click", () => {
+      timerRunning = false;
+      stopTimerLoop();
+      syncTimerFromInputs();
+    });
+
+    // =========================
+    // ストップウォッチ
+    // =========================
+    const stopwatchDisplay = document.getElementById("stopwatchDisplay");
+    const swStartBtn = document.getElementById("swStartBtn");
+    const swStopBtn = document.getElementById("swStopBtn");
+    const swLapBtn = document.getElementById("swLapBtn");
+    const swResetBtn = document.getElementById("swResetBtn");
+    const lapList = document.getElementById("lapList");
+
+    let swRunning = false;
+    let swStartTime = 0;
+    let swElapsedMs = 0;
+    let swRafId = null;
+    let lastLapElapsed = 0;
+    let lapCount = 0;
+
+    function formatStopwatch(ms) {
+      const totalCentiseconds = Math.floor(ms / 10);
+      const minutes = Math.floor(totalCentiseconds / 6000);
+      const seconds = Math.floor((totalCentiseconds % 6000) / 100);
+      const centiseconds = totalCentiseconds % 100;
+      return `${pad2(minutes)}:${pad2(seconds)}.${pad2(centiseconds)}`;
+    }
+
+    function renderStopwatch() {
+      stopwatchDisplay.textContent = formatStopwatch(swElapsedMs);
+    }
+
+    function stopwatchLoop() {
+      if (!swRunning) return;
+      swElapsedMs = performance.now() - swStartTime;
+      renderStopwatch();
+      swRafId = requestAnimationFrame(stopwatchLoop);
+    }
+
+    function stopStopwatchLoop() {
+      if (swRafId) {
+        cancelAnimationFrame(swRafId);
+        swRafId = null;
+      }
+    }
+
+    function addLap() {
+      if (lapList.querySelector(".empty-lap")) {
+        lapList.innerHTML = "";
+      }
+
+      lapCount += 1;
+      const currentElapsed = swElapsedMs;
+      const lapTime = currentElapsed - lastLapElapsed;
+      lastLapElapsed = currentElapsed;
+
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span>LAP ${lapCount}</span>
+        <span>${formatStopwatch(lapTime)} / TOTAL ${formatStopwatch(currentElapsed)}</span>
+      `;
+      lapList.prepend(li);
+    }
+
+    swStartBtn.addEventListener("click", () => {
+      if (swRunning) return;
+      swRunning = true;
+      swStartTime = performance.now() - swElapsedMs;
+      stopwatchLoop();
+    });
+
+    swStopBtn.addEventListener("click", () => {
+      if (!swRunning) return;
+      swRunning = false;
+      swElapsedMs = performance.now() - swStartTime;
+      renderStopwatch();
+      stopStopwatchLoop();
+    });
+
+    swLapBtn.addEventListener("click", () => {
+      if (!swRunning && swElapsedMs === 0) return;
+      addLap();
+    });
+
+    swResetBtn.addEventListener("click", () => {
+      swRunning = false;
+      stopStopwatchLoop();
+      swElapsedMs = 0;
+      swStartTime = 0;
+      lastLapElapsed = 0;
+      lapCount = 0;
+      renderStopwatch();
+      lapList.innerHTML = `<li class="empty-lap">ラップはまだありません</li>`;
+    });
+
+    // =========================
+    // 初期化
+    // =========================
+    function init() {
+      updateDigitalClock();
+      setInterval(updateDigitalClock, 1000);
+
+      createClockMarks();
+      analogLoop();
+
+      syncTimerFromInputs();
+      renderStopwatch();
+    }
+
+    init();
   </script>
 </body>
 </html>
